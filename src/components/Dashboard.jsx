@@ -11,6 +11,7 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
 } from 'recharts'
 import { auth, db } from '../firebase'
+import { fetchAiInsights } from '../services/aiService'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -476,7 +477,7 @@ function SpendingHeatmap({ transactions, loading }) {
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-function OverviewView({ transactions, settings, loading }) {
+function OverviewView({ transactions, settings, loading, realAiInsights, aiLoading }) {
   const m        = nowMonthStr()
   const filtered = filterByMonth(transactions, m)
   const kpis     = processKpis(filtered)
@@ -506,7 +507,7 @@ function OverviewView({ transactions, settings, loading }) {
       {/* ── NEW: AI Financial Assistant cards ── */}
       <div style={{ display:'flex', gap:16, marginBottom:16 }}>
         <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyIns}  accentColor="#8B5CF6" loading={loading} />
-        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={holisticIns} accentColor="#06B6D4" loading={loading} />
+        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={realAiInsights.length > 0 ? realAiInsights : holisticIns} accentColor="#06B6D4" loading={loading || aiLoading} />
       </div>
 
       {/* ── existing InsightsCard (unchanged) ── */}
@@ -954,11 +955,13 @@ const VIEW_LABELS = {
 }
 
 export default function Dashboard({ user, onLogout }) {
-  const [transactions, setTransactions] = useState([])
-  const [settings, setSettings]         = useState({})
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState(null)
-  const [activeView, setActiveView]     = useState('overview')
+  const [transactions, setTransactions]     = useState([])
+  const [settings, setSettings]             = useState({})
+  const [loading, setLoading]               = useState(true)
+  const [error, setError]                   = useState(null)
+  const [activeView, setActiveView]         = useState('overview')
+  const [realAiInsights, setRealAiInsights] = useState([])
+  const [aiLoading, setAiLoading]           = useState(false)
 
   async function fetchData() {
     setLoading(true)
@@ -989,6 +992,19 @@ export default function Dashboard({ user, onLogout }) {
     const id = setInterval(fetchData, 60000)
     return () => clearInterval(id)
   }, [])
+
+  // Debounced AI insights — re-fires 800 ms after transactions stabilise
+  useEffect(() => {
+    if (!transactions.length) return
+    setAiLoading(true)
+    const id = setTimeout(() => {
+      fetchAiInsights(transactions, settings)
+        .then(setRealAiInsights)
+        .catch(() => {})
+        .finally(() => setAiLoading(false))
+    }, 800)
+    return () => clearTimeout(id)
+  }, [transactions])
 
   return (
     <div style={S.root}>
@@ -1039,7 +1055,7 @@ export default function Dashboard({ user, onLogout }) {
             initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
             exit={{ opacity:0, y:-6 }} transition={{ duration:0.18 }}
           >
-            {activeView === 'overview' && <OverviewView transactions={transactions} settings={settings} loading={loading} />}
+            {activeView === 'overview' && <OverviewView transactions={transactions} settings={settings} loading={loading} realAiInsights={realAiInsights} aiLoading={aiLoading} />}
             {activeView === 'monthly'  && <MonthlyView  transactions={transactions} settings={settings} loading={loading} />}
             {activeView === 'annual'   && <AnnualView   transactions={transactions} settings={settings} loading={loading} />}
             {activeView === 'reports'  && <ReportsView  transactions={transactions} loading={loading} />}
