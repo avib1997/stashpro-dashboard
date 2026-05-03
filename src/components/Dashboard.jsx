@@ -6,6 +6,7 @@ import {
   AreaChart, Area,
   LineChart, Line,
   ComposedChart,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
 } from 'recharts'
@@ -223,6 +224,51 @@ function processBudgetVsActual(transactions, monthStr, limit) {
   }))
 }
 
+function processSavingsRadar(settings) {
+  const goals = settings.savingsGoals || []
+  return goals.map(g => ({
+    subject:    g.name || '?',
+    current:    Math.round(Math.min((Number(g.current) || 0) / (Number(g.target) || 1) * 100, 120)),
+    target:     100,
+    currentRaw: Number(g.current) || 0,
+    targetRaw:  Number(g.target)  || 0,
+  }))
+}
+
+const CAT_SLOT = {
+  'קפה': 0, 'ארוחת בוקר': 0, 'תחבורה': 0, 'דלק': 0, 'חינוך': 0,
+  'מכולת': 1, 'קניות': 1, 'ביגוד': 1, 'ביטוח': 1, 'טלפון': 1, 'בריאות': 1,
+  'מסעדה': 2, 'מסעדות': 2, 'בידור': 2, 'ספורט': 2, 'אוכל': 2,
+  'חשמל': 3, 'בנק': 3,
+}
+
+function processSpendingHeatmap(transactions) {
+  const grid = Array.from({ length: 7 }, () => Array(4).fill(0))
+  for (const t of transactions) {
+    if (t.type !== 'expense' || !t.date) continue
+    const d   = new Date(t.date + 'T12:00:00')
+    const day  = d.getDay()
+    const cat  = t.category || ''
+    const slot = CAT_SLOT[cat] ?? ((t.id ? t.id.charCodeAt(t.id.length - 1) : 0) % 4)
+    grid[day][Math.max(0, Math.min(slot, 3))] += Number(t.amount) || 0
+  }
+  return grid
+}
+
+function heatCellStyle(val, maxVal) {
+  if (!val || maxVal === 0) return { background: '#161616', boxShadow: 'none' }
+  const t = val / maxVal
+  if (t < 0.15) return { background: '#2D1116', boxShadow: 'none' }
+  if (t < 0.35) return { background: '#7F1D1D', boxShadow: 'none' }
+  if (t < 0.55) return { background: '#B91C1C', boxShadow: 'none' }
+  if (t < 0.75) return { background: '#DC2626', boxShadow: '0 0 6px rgba(244,63,94,0.35)' }
+  if (t < 0.90) return { background: '#EF4444', boxShadow: '0 0 12px rgba(244,63,94,0.55)' }
+  return               { background: '#F43F5E', boxShadow: '0 0 20px rgba(244,63,94,0.85), 0 0 5px #F43F5E' }
+}
+
+const HEATMAP_DAYS  = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
+const HEATMAP_TIMES = ['בוקר', 'צהריים', 'ערב', 'לילה']
+
 // ─── animation variants ───────────────────────────────────────────────────────
 
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }
@@ -368,6 +414,66 @@ function GlowAiCard({ title, icon, insights, accentColor, loading }) {
   )
 }
 
+function SpendingHeatmap({ transactions, loading }) {
+  const grid   = processSpendingHeatmap(transactions)
+  const maxVal = Math.max(...grid.flat(), 1)
+  const hasData = grid.flat().some(v => v > 0)
+
+  return (
+    <motion.div variants={fadeUp} style={{ ...S.card, marginTop: 16 }}>
+      <p style={S.sectionTitle}>מפת חום התנהגותית</p>
+      <p style={{ fontSize:10, color:'#374151', margin:'-10px 0 18px', letterSpacing:'0.02em' }}>
+        הוצאות לפי יום בשבוע × שעת יום
+      </p>
+      {loading ? <Empty msg="טוען…" /> : !hasData ? <Empty msg="אין מספיק נתוני הוצאות" /> : (
+        <div style={{ direction:'rtl' }}>
+          {/* Header row */}
+          <div style={{ display:'grid', gridTemplateColumns:'76px repeat(4,1fr)', gap:5, marginBottom:5 }}>
+            <div />
+            {HEATMAP_TIMES.map(t => (
+              <div key={t} style={{ fontSize:10, color:'#4B5563', textAlign:'center', letterSpacing:'0.04em', textTransform:'uppercase' }}>{t}</div>
+            ))}
+          </div>
+          {/* Data rows */}
+          {HEATMAP_DAYS.map((day, di) => (
+            <div key={day} style={{ display:'grid', gridTemplateColumns:'76px repeat(4,1fr)', gap:5, marginBottom:5 }}>
+              <div style={{ fontSize:11, color:'#4B5563', display:'flex', alignItems:'center', justifyContent:'flex-end', paddingLeft:10 }}>
+                {day}
+              </div>
+              {grid[di].map((val, ti) => {
+                const cs = heatCellStyle(val, maxVal)
+                return (
+                  <motion.div
+                    key={ti}
+                    initial={{ opacity: 0, scale: 0.75 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: (di * 4 + ti) * 0.014, duration: 0.22 }}
+                    title={val > 0 ? fmtILS(val) : '—'}
+                    style={{
+                      height: 30, borderRadius: 6,
+                      background: cs.background,
+                      boxShadow: cs.boxShadow,
+                      transition: 'box-shadow 0.2s',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          ))}
+          {/* Scale legend */}
+          <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:12, justifyContent:'flex-end', direction:'ltr' }}>
+            <span style={{ fontSize:10, color:'#374151', marginLeft:4 }}>נמוך</span>
+            {['#161616','#2D1116','#7F1D1D','#B91C1C','#DC2626','#EF4444','#F43F5E'].map((c, i) => (
+              <div key={i} style={{ width:16, height:16, borderRadius:4, background:c }} />
+            ))}
+            <span style={{ fontSize:10, color:'#374151', marginRight:4 }}>גבוה</span>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
 function OverviewView({ transactions, settings, loading }) {
@@ -384,6 +490,7 @@ function OverviewView({ transactions, settings, loading }) {
   const cashflow    = processMultiYearCashflow(transactions)
   const budgetData  = processBudgetVsActual(transactions, m, limit)
   const hasCashflow = cashflow.length >= 2
+  const radarData   = processSavingsRadar(settings)
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="visible" style={S.view}>
@@ -490,22 +597,50 @@ function OverviewView({ transactions, settings, loading }) {
           )}
         </motion.div>
 
-        {/* Chart 3: Heatmap Analysis — placeholder */}
-        <motion.div
-          variants={fadeUp}
-          style={{
-            ...S.card, marginBottom:0,
-            border:'1px dashed rgba(255,255,255,0.07)',
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            gap:10,
-          }}
-        >
-          <span style={{ fontSize:32, opacity:0.15 }}>⬛</span>
-          <p style={{ ...S.sectionTitle, margin:0, opacity:0.35 }}>ניתוח Heatmap</p>
-          <p style={{ fontSize:11, color:'#374151', margin:0, textAlign:'center' }}>בקרוב — מפת חום תזרים</p>
+        {/* Chart 3: Savings Radar */}
+        <motion.div variants={fadeUp} style={{ ...S.card, marginBottom:0 }}>
+          <p style={S.sectionTitle}>רדאר קופות חיסכון</p>
+          <p style={{ fontSize:10, color:'#374151', margin:'-10px 0 12px', letterSpacing:'0.02em' }}>% השגת יעד לכל קופה</p>
+          {radarData.length === 0 && !loading ? <Empty msg="לא הוגדרו קופות חיסכון בהגדרות" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <RadarChart data={radarData} margin={{ top:10, right:24, bottom:10, left:24 }}>
+                <PolarGrid stroke="#27272A" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill:'#4B5563', fontSize:9 }} />
+                <PolarRadiusAxis angle={90} domain={[0, 120]} tick={false} axisLine={false} />
+                <Radar name="יעד" dataKey="target"
+                  stroke="rgba(99,209,246,0.28)" strokeWidth={1}
+                  fill="rgba(99,209,246,0.06)"
+                />
+                <Radar name="נוכחי" dataKey="current"
+                  stroke="#63d1f6" strokeWidth={2}
+                  fill="rgba(16,185,129,0.20)"
+                  dot={{ r:3, fill:'#10B981', strokeWidth:0 }}
+                />
+                <Legend wrapperStyle={{ fontSize:9, color:'#4B5563', paddingTop:4 }} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    const d = radarData.find(r => r.subject === payload[0]?.payload?.subject)
+                    if (!d) return null
+                    return (
+                      <div style={S.tooltip}>
+                        <p style={S.tooltipLabel}>{d.subject}</p>
+                        <p style={{ margin:'2px 0', color:'#10B981', fontSize:13 }}>נוכחי: {fmtILS(d.currentRaw)}</p>
+                        <p style={{ margin:'2px 0', color:'#63d1f6', fontSize:13 }}>יעד: {fmtILS(d.targetRaw)}</p>
+                      </div>
+                    )
+                  }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
         </motion.div>
 
       </div>
+
+      {/* Chart 4: Behavioral Spending Heatmap */}
+      <SpendingHeatmap transactions={transactions} loading={loading} />
+
     </motion.div>
   )
 }
