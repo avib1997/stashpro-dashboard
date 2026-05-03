@@ -1,29 +1,36 @@
 // ─── AI Insights Service ──────────────────────────────────────────────────────
-// Uses VITE_AI_API_KEY (Anthropic Claude) when available.
-// Note: for production, proxy through a backend to avoid exposing the key.
+// Direct Anthropic call via corsproxy.io to sidestep browser CORS.
+// For production, move to a server-side route so the key stays secret.
 
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY
+const API_KEY   = import.meta.env.VITE_ANTHROPIC_API_KEY
+const API_URL   = 'https://corsproxy.io/?https://api.anthropic.com/v1/messages'
+const MODEL     = 'claude-3-5-haiku-20241022'
+const MAX_TOKENS = 300
+
+const SYSTEM_PROMPT =
+  'You are an elite, concise financial advisor for the StashPro app. ' +
+  'Analyze the user\'s data. Output exactly 3 bullet points in Hebrew. ' +
+  'No intro, no outro, just 3 short actionable sentences focusing on ' +
+  'anomalies, category spending, or budget pace.'
 
 const fmtILS = (n) => `₪${Math.round(n).toLocaleString('he-IL')}`
 
-// ─── Data summarisation ───────────────────────────────────────────────────────
+// ─── Data summary ─────────────────────────────────────────────────────────────
 
-function summarizeLast30Days(transactions) {
+function buildSummary(transactions, settings) {
+  // last-30-days window
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 30)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
-
   const recent = transactions.filter((t) => (t.date ?? '') >= cutoffStr)
 
   let totalSpent = 0, totalIncome = 0
   const catMap = {}
-
   for (const t of recent) {
     const amt = Number(t.amount) || 0
     if (t.type === 'expense') {
       totalSpent += amt
-      const cat = t.category || 'אחר'
-      catMap[cat] = (catMap[cat] || 0) + amt
+      catMap[t.category || 'אחר'] = (catMap[t.category || 'אחר'] || 0) + amt
     } else {
       totalIncome += amt
     }
@@ -34,19 +41,46 @@ function summarizeLast30Days(transactions) {
     .slice(0, 3)
     .map(([name, amount]) => ({ name, amount: Math.round(amount) }))
 
+  // current-month pace
+  const now        = new Date()
+  const day        = now.getDate()
+  const totalDays  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const monthStr   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const monthLimit = Number(settings.monthlyLimit) || 0
+
+  let monthExpenses = 0
+  for (const t of transactions) {
+    if (t.type === 'expense' && (t.date ?? '').startsWith(monthStr))
+      monthExpenses += Number(t.amount) || 0
+  }
+  monthExpenses = Math.round(monthExpenses)
+
+  const expectedByNow = monthLimit > 0 ? Math.round((day / totalDays) * monthLimit) : 0
+  let paceStatus
+  if (!monthLimit) {
+    paceStatus = 'לא הוגדרה מסגרת חודשית'
+  } else if (monthExpenses > monthLimit) {
+    paceStatus = `חריגה מהמסגרת — ${fmtILS(monthExpenses)} מתוך ${fmtILS(monthLimit)}`
+  } else if (monthExpenses > expectedByNow) {
+    paceStatus = `קצב הוצאות מהיר — ${fmtILS(monthExpenses)} vs. צפי ${fmtILS(expectedByNow)} (מסגרת: ${fmtILS(monthLimit)})`
+  } else {
+    paceStatus = `קצב הוצאות תקין — ${fmtILS(monthExpenses)} vs. צפי ${fmtILS(expectedByNow)} (מסגרת: ${fmtILS(monthLimit)})`
+  }
+
   return {
     totalSpent:  Math.round(totalSpent),
     totalIncome: Math.round(totalIncome),
     balance:     Math.round(totalIncome - totalSpent),
     top3,
     txCount:     recent.length,
+    paceStatus,
   }
 }
 
-// ─── Fallback (no API key) ────────────────────────────────────────────────────
+// ─── Fallback (no key or API failure) ────────────────────────────────────────
 
 function generateFallbackInsights(summary) {
-  const { totalSpent, totalIncome, balance, top3, txCount } = summary
+  const { totalSpent, totalIncome, balance, top3, paceStatus } = summary
   const out = []
 
   if (top3.length > 0) {
@@ -55,82 +89,94 @@ function generateFallbackInsights(summary) {
   }
 
   if (totalIncome > 0) {
-    const rate = Math.round(((totalIncome - totalSpent) / totalIncome) * 100)
+    const rate    = Math.round(((totalIncome - totalSpent) / totalIncome) * 100)
     const verdict =
       rate > 20 ? 'שיעור חיסכון מעולה — המשך כך!'
       : rate > 5  ? 'שיעור חיסכון סביר — שאוף ל-20%+'
       : rate > 0  ? 'שיעור נמוך — בחן היכן ניתן לקצץ'
       :              'גירעון — ההוצאות עולות על ההכנסות'
-    out.push(`שיעור חיסכון חודשי: ${rate}% — ${verdict}.`)
+    out.push(`שיעור חיסכון: ${rate}% — ${verdict}.`)
   }
 
-  if (balance >= 0) {
-    out.push(`יתרה נטו ב-30 הימים: ${fmtILS(balance)} על פני ${txCount} עסקאות.`)
-  } else {
-    const topCat = top3[0]?.name ?? 'הקטגוריות המובילות'
-    out.push(`גירעון של ${fmtILS(Math.abs(balance))} ב-30 יום — שקול לצמצם ב"${topCat}".`)
-  }
+  out.push(`קצב חודשי: ${paceStatus}.`)
 
-  if (!out.length) out.push('הוסף עסקאות מ-30 הימים האחרונים לקבלת תובנות AI.')
-  return out
+  if (!out.length) out.push('הוסף עסקאות כדי לקבל תובנות פיננסיות.')
+  return out.slice(0, 3)
 }
 
-// ─── API call ─────────────────────────────────────────────────────────────────
+// ─── Response parser ──────────────────────────────────────────────────────────
+
+function parseInsights(text) {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*[•\-\*•]\s*/, '')  // strip bullet chars (•, -, *, •)
+        .replace(/^\s*\d+[\.\)]\s*/, '')       // strip "1." / "1)"
+        .replace(/\*\*/g, '')                  // strip markdown bold
+        .trim()
+    )
+    .filter((line) => line.length > 6)
+    .slice(0, 3)
+}
+
+// ─── Anthropic API call ───────────────────────────────────────────────────────
 
 async function callClaudeApi(summary) {
-  const { totalSpent, totalIncome, balance, top3 } = summary
-  const catLines = top3.map((c) => `  - ${c.name}: ${fmtILS(c.amount)}`).join('\n')
+  const { totalSpent, totalIncome, balance, top3, paceStatus } = summary
+  const catLines = top3.length
+    ? top3.map((c) => `  • ${c.name}: ${fmtILS(c.amount)}`).join('\n')
+    : '  אין נתונים'
 
-  const userMessage = [
-    'אתה יועץ פיננסי אישי. נתח את הנתונים הבאים מ-30 הימים האחרונים ותן בדיוק 3 המלצות קצרות, ממוקדות ומועילות בעברית.',
-    '',
-    `הכנסות סה"כ: ${fmtILS(totalIncome)}`,
-    `הוצאות סה"כ: ${fmtILS(totalSpent)}`,
-    `יתרה: ${fmtILS(balance)}`,
-    `קטגוריות הוצאה מובילות:\n${catLines || '  אין נתונים'}`,
-    '',
-    'ענה אך ורק עם מערך JSON תקין: ["המלצה 1","המלצה 2","המלצה 3"]',
+  const userContent = [
+    `הכנסות סה"כ (30 יום): ${fmtILS(totalIncome)}`,
+    `הוצאות סה"כ (30 יום): ${fmtILS(totalSpent)}`,
+    `יתרה נטו: ${fmtILS(balance)}`,
+    `קטגוריות הוצאה מובילות:\n${catLines}`,
+    `קצב תקציב חודשי: ${paceStatus}`,
   ].join('\n')
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': AI_API_KEY,
+      'content-type':      'application/json',
+      'x-api-key':         API_KEY,
       'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: userMessage }],
+      model:      MODEL,
+      max_tokens: MAX_TOKENS,
+      system:     SYSTEM_PROMPT,
+      messages:   [{ role: 'user', content: userContent }],
     }),
   })
 
-  if (!res.ok) throw new Error(`Anthropic API ${res.status}`)
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.status)
+    throw new Error(`Anthropic ${res.status}: ${errText}`)
+  }
 
-  const data = await res.json()
-  const raw  = data.content?.[0]?.text ?? ''
-  const match = raw.match(/\[[\s\S]*?\]/)
-  if (!match) throw new Error('No JSON array in response')
+  const data     = await res.json()
+  const rawText  = data.content?.[0]?.text ?? ''
+  const insights = parseInsights(rawText)
 
-  const parsed = JSON.parse(match[0])
-  if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty array')
-  return parsed.slice(0, 3)
+  if (insights.length === 0) throw new Error('Empty parsed insights')
+  return insights
 }
 
 // ─── Public export ────────────────────────────────────────────────────────────
 
 export async function fetchAiInsights(transactions, settings) {
-  const summary = summarizeLast30Days(transactions)
+  const summary = buildSummary(transactions, settings)
 
-  if (!AI_API_KEY) {
+  if (!API_KEY) {
     return generateFallbackInsights(summary)
   }
 
   try {
     return await callClaudeApi(summary)
-  } catch {
+  } catch (err) {
+    console.warn('[aiService] API call failed, using fallback:', err.message)
     return generateFallbackInsights(summary)
   }
 }
