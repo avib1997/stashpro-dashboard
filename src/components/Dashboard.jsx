@@ -3,8 +3,11 @@ import { collection, doc, getDocs, getDoc } from 'firebase/firestore'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ResponsiveContainer, BarChart, Bar,
+  AreaChart, Area,
+  LineChart, Line,
+  ComposedChart,
   PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
 } from 'recharts'
 import { auth, db } from '../firebase'
 
@@ -132,6 +135,94 @@ function generateInsights(txs, settings) {
   return out
 }
 
+function generateCurrentMonthInsights(filtered, settings) {
+  const limit = Number(settings.monthlyLimit) || 0
+  const { income, expenses } = processKpis(filtered)
+  const top = processByCategory(filtered)[0]
+  const now = new Date()
+  const day = now.getDate()
+  const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const projected = day > 0 ? (expenses / day) * totalDays : 0
+  const out = []
+
+  if (top) {
+    const pct = expenses > 0 ? Math.round((top.value / expenses) * 100) : 0
+    out.push(`הקטגוריה המובילה היא "${top.name}" — ${fmtILS(top.value)} (${pct}% מסך ההוצאות החודש).`)
+  }
+  if (limit > 0) {
+    if (projected > limit)
+      out.push(`לפי קצב יום ${day}/${totalDays}, צפויה חריגה של ${fmtILS(projected - limit)} עד סוף החודש.`)
+    else
+      out.push(`קצב תקין — צפי לסיים ב-${fmtILS(limit - projected)} מתחת למסגרת. נותרו ${fmtILS(limit - expenses)} ל-${totalDays - day} ימים.`)
+  }
+  if (income > 0) {
+    const rate = Math.round(((income - expenses) / income) * 100)
+    const v = rate > 20 ? 'מצוין — המשך כך' : rate > 0 ? 'סביר — שאוף ל-20%+' : 'גירעון — בדוק הכנסות'
+    out.push(`שיעור חיסכון חודשי: ${rate}% — ${v}.`)
+  }
+  if (!out.length) out.push('אין עדיין נתונים לניתוח החודש הנוכחי.')
+  return out
+}
+
+function generateHolisticInsights(transactions, settings) {
+  const { income, expenses, net } = processKpis(transactions)
+  const yearlyGoal = Number(settings.yearlyGoal) || 0
+  const recurringExp = transactions.filter(t => t.period === 'monthly' && t.type === 'expense')
+  const recurringTotal = recurringExp.reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  const uniqueMonths = new Set(transactions.map(t => t.date?.slice(0, 7)).filter(Boolean)).size
+  const out = []
+
+  if (income > 0) {
+    const rate = Math.round((net / income) * 100)
+    out.push(`היסטוריה כוללת: ${fmtILS(income)} הכנסות, ${fmtILS(expenses)} הוצאות — שיעור חיסכון ממוצע ${rate}%.`)
+  }
+  if (recurringExp.length > 0)
+    out.push(`${recurringExp.length} הוצאות קבועות — ${fmtILS(recurringTotal)}/חודש. בדוק מה ניתן לצמצם.`)
+  if (yearlyGoal > 0) {
+    const pct = Math.min(Math.round((net / yearlyGoal) * 100), 100)
+    out.push(`התקדמות ליעד ${fmtILS(yearlyGoal)}: ${pct}% הושג.${pct >= 100 ? ' כל הכבוד!' : ` נותר ${fmtILS(yearlyGoal - Math.max(net, 0))}.`}`)
+  } else if (uniqueMonths > 1 && income > 0) {
+    out.push(`ממוצע חודשי — ${uniqueMonths} חודשים: ${fmtILS(Math.round(income / uniqueMonths))} הכנסות, ${fmtILS(Math.round(expenses / uniqueMonths))} הוצאות.`)
+  }
+  if (!out.length) out.push('הוסף עסקאות לקבלת סקירת בריאות פיננסית כוללת.')
+  return out
+}
+
+function processMultiYearCashflow(transactions) {
+  const map = {}
+  for (const t of transactions) {
+    if (!t.date) continue
+    const key = t.date.slice(0, 7)
+    if (!map[key]) map[key] = { income: 0, expense: 0 }
+    const amt = Number(t.amount) || 0
+    if (t.type === 'income') map[key].income += amt
+    else map[key].expense += amt
+  }
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-18)
+    .map(([key, d]) => ({
+      label:   `${HEBREW_MONTHS[parseInt(key.slice(5, 7)) - 1]}'${key.slice(2, 4)}`,
+      income:  Math.round(d.income),
+      expense: Math.round(d.expense),
+      net:     Math.round(d.income - d.expense),
+    }))
+}
+
+function processBudgetVsActual(transactions, monthStr, limit) {
+  const catMap = {}
+  for (const t of transactions) {
+    if (t.type !== 'expense' || !t.date?.startsWith(monthStr)) continue
+    const cat = t.category || 'אחר'
+    catMap[cat] = (catMap[cat] || 0) + (Number(t.amount) || 0)
+  }
+  const top5 = Object.entries(catMap).sort(([, a], [, b]) => b - a).slice(0, 5)
+  const share = limit > 0 && top5.length > 0 ? limit / top5.length : 0
+  return top5.map(([name, actual]) => ({
+    name, actual: Math.round(actual), budget: Math.round(share), over: actual > share,
+  }))
+}
+
 // ─── animation variants ───────────────────────────────────────────────────────
 
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }
@@ -239,6 +330,44 @@ function InsightsCard({ insights, loading }) {
   )
 }
 
+function GlowAiCard({ title, icon, insights, accentColor, loading }) {
+  return (
+    <motion.div variants={fadeUp} style={{ flex: 1, minWidth: 0 }}>
+      <motion.div
+        animate={{
+          boxShadow: [
+            `0 0 0 1px ${accentColor}22, 0 0 28px ${accentColor}14`,
+            `0 0 0 1px ${accentColor}55, 0 0 56px ${accentColor}34`,
+            `0 0 0 1px ${accentColor}22, 0 0 28px ${accentColor}14`,
+          ],
+        }}
+        transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          ...S.card, marginBottom: 0,
+          border: `1px solid ${accentColor}40`,
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        }}
+      >
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14, direction:'rtl' }}>
+          <span style={{ fontSize:18, lineHeight:1 }}>{icon}</span>
+          <p style={{ ...S.cardLabel, margin:0, color:accentColor, letterSpacing:'0.05em' }}>{title}</p>
+          <span style={{ ...S.aiBadge, marginRight:'auto' }}>AI</span>
+        </div>
+        {loading ? <Empty msg="טוען…" /> : (
+          <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:10 }}>
+            {insights.map((txt, i) => (
+              <li key={i} style={{ display:'flex', alignItems:'flex-start', gap:9, direction:'rtl' }}>
+                <span style={{ width:5, height:5, borderRadius:'50%', background:accentColor, flexShrink:0, marginTop:7 }} />
+                <span style={{ fontSize:13, color:'#CBD5E1', lineHeight:1.62 }}>{txt}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
 function OverviewView({ transactions, settings, loading }) {
@@ -247,9 +376,19 @@ function OverviewView({ transactions, settings, loading }) {
   const kpis     = processKpis(filtered)
   const insights = generateInsights(filtered, settings)
   const comp     = processMonthlyComparison(transactions, String(CURRENT_YEAR))
+  const limit    = Number(settings.monthlyLimit) || 0
+
+  // data for new analytical section
+  const monthlyIns  = generateCurrentMonthInsights(filtered, settings)
+  const holisticIns = generateHolisticInsights(transactions, settings)
+  const cashflow    = processMultiYearCashflow(transactions)
+  const budgetData  = processBudgetVsActual(transactions, m, limit)
+  const hasCashflow = cashflow.length >= 2
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="visible" style={S.view}>
+
+      {/* ── KPI row (unchanged) ── */}
       <div style={{ ...S.kpiGrid, gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 18 }}>
         <KpiCard title="הכנסות החודש"  value={loading ? '—' : fmtILS(kpis.income)}   accent="#10B981" sub={`${filtered.filter(t=>t.type==='income').length} עסקאות`} />
         <KpiCard title="הוצאות החודש"  value={loading ? '—' : fmtILS(kpis.expenses)} accent="#F43F5E" sub={`${filtered.filter(t=>t.type==='expense').length} עסקאות`} />
@@ -257,8 +396,16 @@ function OverviewView({ transactions, settings, loading }) {
         <KpiCard title="סה״כ עסקאות"   value={loading ? '—' : transactions.length}   accent="#06B6D4" sub="כל הזמנים" />
       </div>
 
+      {/* ── NEW: AI Financial Assistant cards ── */}
+      <div style={{ display:'flex', gap:16, marginBottom:16 }}>
+        <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyIns}  accentColor="#8B5CF6" loading={loading} />
+        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={holisticIns} accentColor="#06B6D4" loading={loading} />
+      </div>
+
+      {/* ── existing InsightsCard (unchanged) ── */}
       <InsightsCard insights={insights} loading={loading} />
 
+      {/* ── existing BarChart (unchanged) ── */}
       <motion.div variants={fadeUp} style={S.card}>
         <SectionTitle>השוואת הכנסות / הוצאות — {CURRENT_YEAR}</SectionTitle>
         {comp.every(d => !d.income && !d.expense) && !loading ? <Empty msg="אין נתונים לשנה זו" /> : (
@@ -275,6 +422,90 @@ function OverviewView({ transactions, settings, loading }) {
           </ResponsiveContainer>
         )}
       </motion.div>
+
+      {/* ── NEW: Analytical Charts Grid ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+
+        {/* Chart 1: Temporal Cashflow — multi-line AreaChart */}
+        <motion.div variants={fadeUp} style={{ ...S.card, marginBottom:0 }}>
+          <p style={S.sectionTitle}>תזרים מזומנים טמפורלי</p>
+          <p style={{ fontSize:10, color:'#374151', margin:'-10px 0 12px' }}>הכנסות / הוצאות / יתרה — 18 חודשים</p>
+          {!hasCashflow && !loading ? <Empty msg="אין מספיק נתונים" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={cashflow} margin={{ top:4, right:0, left:0, bottom:0 }}>
+                <defs>
+                  <linearGradient id="cfInc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#10B981" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="cfExp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#F43F5E" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#F43F5E" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="cfNet" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#8B5CF6" stopOpacity={0.42} />
+                    <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#27272A" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill:'#4B5563', fontSize:9 }} axisLine={false} tickLine={false}
+                  interval={Math.max(Math.floor(cashflow.length / 6) - 1, 0)} />
+                <YAxis tick={{ fill:'#4B5563', fontSize:9 }} axisLine={false} tickLine={false}
+                  tickFormatter={v=>`₪${(v/1000).toFixed(0)}K`} width={42} />
+                <Tooltip content={<DarkTooltip />} />
+                <Legend wrapperStyle={{ fontSize:9, color:'#4B5563', paddingTop:4 }} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.07)" strokeDasharray="4 4" />
+                <Area type="monotone" dataKey="income"  name="הכנסות"   stroke="#10B981" strokeWidth={1.5} fill="url(#cfInc)" />
+                <Area type="monotone" dataKey="expense" name="הוצאות"   stroke="#F43F5E" strokeWidth={1.5} fill="url(#cfExp)" />
+                <Area type="monotone" dataKey="net"     name="יתרה נטו" stroke="#8B5CF6" strokeWidth={2}   fill="url(#cfNet)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Chart 2: Predictive Budget Variance — ComposedChart */}
+        <motion.div variants={fadeUp} style={{ ...S.card, marginBottom:0 }}>
+          <p style={S.sectionTitle}>סטיית תקציב ניבויית</p>
+          <p style={{ fontSize:10, color:'#374151', margin:'-10px 0 12px' }}>בפועל vs תקציב — קטגוריות מובילות</p>
+          {budgetData.length === 0 && !loading ? <Empty msg="אין הוצאות בחודש זה" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={budgetData} margin={{ top:4, right:8, left:0, bottom:36 }}>
+                <CartesianGrid stroke="#27272A" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill:'#64748B', fontSize:9 }} axisLine={false} tickLine={false}
+                  angle={-28} textAnchor="end" />
+                <YAxis tick={{ fill:'#4B5563', fontSize:9 }} axisLine={false} tickLine={false}
+                  tickFormatter={v=>`₪${v}`} width={50} />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill:'rgba(255,255,255,0.025)' }} />
+                <Legend wrapperStyle={{ fontSize:9, color:'#4B5563', paddingTop:4 }} />
+                <Bar dataKey="actual" name="בפועל" radius={[3,3,0,0]} maxBarSize={30}>
+                  {budgetData.map((e, i) => <Cell key={i} fill={e.over ? '#F43F5E' : '#10B981'} />)}
+                </Bar>
+                <Line type="monotone" dataKey="budget" name="תקציב יעד"
+                  stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 3"
+                  dot={{ r:3, fill:'#F59E0B', strokeWidth:0 }}
+                  activeDot={{ r:5, fill:'#F59E0B', stroke:'rgba(245,158,11,0.35)', strokeWidth:5 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Chart 3: Heatmap Analysis — placeholder */}
+        <motion.div
+          variants={fadeUp}
+          style={{
+            ...S.card, marginBottom:0,
+            border:'1px dashed rgba(255,255,255,0.07)',
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            gap:10,
+          }}
+        >
+          <span style={{ fontSize:32, opacity:0.15 }}>⬛</span>
+          <p style={{ ...S.sectionTitle, margin:0, opacity:0.35 }}>ניתוח Heatmap</p>
+          <p style={{ fontSize:11, color:'#374151', margin:0, textAlign:'center' }}>בקרוב — מפת חום תזרים</p>
+        </motion.div>
+
+      </div>
     </motion.div>
   )
 }
