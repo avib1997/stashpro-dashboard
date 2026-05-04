@@ -15,7 +15,7 @@ import { fetchAiInsights } from '../services/aiService'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const PIE_COLORS    = ['#06B6D4', '#10B981', '#F43F5E', '#F59E0B', '#8B5CF6', '#EC4899', '#3B82F6']
+const PIE_COLORS    = ['#06D6F7', '#10EFAA', '#FF3E6C', '#F59E0B', '#818CF8', '#F0ABFC', '#38BDF8']
 const HEBREW_MONTHS = ['ינו׳','פבר׳','מרץ','אפר׳','מאי','יוני','יולי','אוג׳','ספט׳','אוק׳','נוב׳','דצמ׳']
 const CURRENT_YEAR  = new Date().getFullYear()
 const YEARS         = Array.from({ length: CURRENT_YEAR - 2019 }, (_, i) => String(CURRENT_YEAR - i))
@@ -92,7 +92,7 @@ function calcPace(spent, limit) {
   if (!limit) return { icon: '—', label: 'לא הוגדרה מסגרת', color: '#475569', expected: 0, day, total, spentPct: 0 }
   const expected = (day / total) * limit
   const spentPct = Math.min(spent / limit, 1)
-  if (spent > limit)    return { icon: '🚨', label: 'חריגה מהמסגרת', color: '#F43F5E', expected, day, total, spentPct }
+  if (spent > limit)    return { icon: '🚨', label: 'חריגה מהמסגרת', color: '#FF3E6C', expected, day, total, spentPct }
   if (spent > expected) return { icon: '⚠️', label: 'קצב מהיר',      color: '#F59E0B', expected, day, total, spentPct }
   return                       { icon: '✅', label: 'קצב תקין',      color: '#10B981', expected, day, total, spentPct }
 }
@@ -264,7 +264,7 @@ function heatCellStyle(val, maxVal) {
   if (t < 0.55) return { background: '#B91C1C', boxShadow: 'none' }
   if (t < 0.75) return { background: '#DC2626', boxShadow: '0 0 6px rgba(244,63,94,0.35)' }
   if (t < 0.90) return { background: '#EF4444', boxShadow: '0 0 12px rgba(244,63,94,0.55)' }
-  return               { background: '#F43F5E', boxShadow: '0 0 20px rgba(244,63,94,0.85), 0 0 5px #F43F5E' }
+  return               { background: '#FF3E6C', boxShadow: '0 0 20px rgba(244,63,94,0.85), 0 0 5px #FF3E6C' }
 }
 
 const HEATMAP_DAYS  = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
@@ -322,7 +322,7 @@ function LinearProgress({ value, max, color }) {
   )
 }
 
-function CircularProgress({ value, max, size = 64, stroke = 5, color = '#8B5CF6', children }) {
+function CircularProgress({ value, max, size = 64, stroke = 5, color = '#6366F1', children }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const p = max > 0 ? Math.min(value / max, 1) : 0
@@ -464,7 +464,7 @@ function SpendingHeatmap({ transactions, loading }) {
           {/* Scale legend */}
           <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:12, justifyContent:'flex-end', direction:'ltr' }}>
             <span style={{ fontSize:10, color:'#374151', marginLeft:4 }}>נמוך</span>
-            {['#161616','#2D1116','#7F1D1D','#B91C1C','#DC2626','#EF4444','#F43F5E'].map((c, i) => (
+            {['#161616','#2D1116','#7F1D1D','#B91C1C','#DC2626','#EF4444','#FF3E6C'].map((c, i) => (
               <div key={i} style={{ width:16, height:16, borderRadius:4, background:c }} />
             ))}
             <span style={{ fontSize:10, color:'#374151', marginRight:4 }}>גבוה</span>
@@ -499,15 +499,15 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
       {/* ── KPI row (unchanged) ── */}
       <div style={{ ...S.kpiGrid, gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 18 }}>
         <KpiCard title="הכנסות החודש"  value={loading ? '—' : fmtILS(kpis.income)}   accent="#10B981" sub={`${filtered.filter(t=>t.type==='income').length} עסקאות`} />
-        <KpiCard title="הוצאות החודש"  value={loading ? '—' : fmtILS(kpis.expenses)} accent="#F43F5E" sub={`${filtered.filter(t=>t.type==='expense').length} עסקאות`} />
-        <KpiCard title="יתרה נקייה"    value={loading ? '—' : fmtILS(kpis.net)}      accent="#8B5CF6" sub={kpis.net >= 0 ? 'עודף' : 'גירעון'} />
-        <KpiCard title="סה״כ עסקאות"   value={loading ? '—' : transactions.length}   accent="#06B6D4" sub="כל הזמנים" />
+        <KpiCard title="הוצאות החודש"  value={loading ? '—' : fmtILS(kpis.expenses)} accent="#FF3E6C" sub={`${filtered.filter(t=>t.type==='expense').length} עסקאות`} />
+        <KpiCard title="יתרה נקייה"    value={loading ? '—' : fmtILS(kpis.net)}      accent="#6366F1" sub={kpis.net >= 0 ? 'עודף' : 'גירעון'} />
+        <KpiCard title="סה״כ עסקאות"   value={loading ? '—' : transactions.length}   accent="#06D6F7" sub="כל הזמנים" />
       </div>
 
       {/* ── NEW: AI Financial Assistant cards ── */}
       <div style={{ display:'flex', gap:16, marginBottom:16 }}>
-        <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyIns}  accentColor="#8B5CF6" loading={loading} />
-        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={realAiInsights.length > 0 ? realAiInsights : holisticIns} accentColor="#06B6D4" loading={loading || aiLoading} />
+        <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyIns}  accentColor="#6366F1" loading={loading} />
+        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={realAiInsights.length > 0 ? realAiInsights : holisticIns} accentColor="#06D6F7" loading={loading || aiLoading} />
       </div>
 
       {/* ── existing InsightsCard (unchanged) ── */}
@@ -525,7 +525,7 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
               <Tooltip content={<DarkTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#4B5563', paddingTop: 8 }} />
               <Bar dataKey="income"  name="הכנסות" fill="#10B981" radius={[3,3,0,0]} />
-              <Bar dataKey="expense" name="הוצאות" fill="#F43F5E" radius={[3,3,0,0]} />
+              <Bar dataKey="expense" name="הוצאות" fill="#FF3E6C" radius={[3,3,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -547,12 +547,12 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
                     <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="cfExp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#F43F5E" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#F43F5E" stopOpacity={0.02} />
+                    <stop offset="0%"   stopColor="#FF3E6C" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#FF3E6C" stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="cfNet" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#8B5CF6" stopOpacity={0.42} />
-                    <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.02} />
+                    <stop offset="0%"   stopColor="#6366F1" stopOpacity={0.42} />
+                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#27272A" vertical={false} />
@@ -564,8 +564,8 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
                 <Legend wrapperStyle={{ fontSize:9, color:'#4B5563', paddingTop:4 }} />
                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.07)" strokeDasharray="4 4" />
                 <Area type="monotone" dataKey="income"  name="הכנסות"   stroke="#10B981" strokeWidth={1.5} fill="url(#cfInc)" />
-                <Area type="monotone" dataKey="expense" name="הוצאות"   stroke="#F43F5E" strokeWidth={1.5} fill="url(#cfExp)" />
-                <Area type="monotone" dataKey="net"     name="יתרה נטו" stroke="#8B5CF6" strokeWidth={2}   fill="url(#cfNet)" />
+                <Area type="monotone" dataKey="expense" name="הוצאות"   stroke="#FF3E6C" strokeWidth={1.5} fill="url(#cfExp)" />
+                <Area type="monotone" dataKey="net"     name="יתרה נטו" stroke="#6366F1" strokeWidth={2}   fill="url(#cfNet)" />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -586,7 +586,7 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
                 <Tooltip content={<DarkTooltip />} cursor={{ fill:'rgba(255,255,255,0.025)' }} />
                 <Legend wrapperStyle={{ fontSize:9, color:'#4B5563', paddingTop:4 }} />
                 <Bar dataKey="actual" name="בפועל" radius={[3,3,0,0]} maxBarSize={30}>
-                  {budgetData.map((e, i) => <Cell key={i} fill={e.over ? '#F43F5E' : '#10B981'} />)}
+                  {budgetData.map((e, i) => <Cell key={i} fill={e.over ? '#FF3E6C' : '#10B981'} />)}
                 </Bar>
                 <Line type="monotone" dataKey="budget" name="תקציב יעד"
                   stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 3"
@@ -609,11 +609,11 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
                 <PolarAngleAxis dataKey="subject" tick={{ fill:'#4B5563', fontSize:9 }} />
                 <PolarRadiusAxis angle={90} domain={[0, 120]} tick={false} axisLine={false} />
                 <Radar name="יעד" dataKey="target"
-                  stroke="rgba(99,209,246,0.28)" strokeWidth={1}
-                  fill="rgba(99,209,246,0.06)"
+                  stroke="rgba(6,214,247,0.28)" strokeWidth={1}
+                  fill="rgba(6,214,247,0.06)"
                 />
                 <Radar name="נוכחי" dataKey="current"
-                  stroke="#63d1f6" strokeWidth={2}
+                  stroke="#06D6F7" strokeWidth={2}
                   fill="rgba(16,185,129,0.20)"
                   dot={{ r:3, fill:'#10B981', strokeWidth:0 }}
                 />
@@ -627,7 +627,7 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
                       <div style={S.tooltip}>
                         <p style={S.tooltipLabel}>{d.subject}</p>
                         <p style={{ margin:'2px 0', color:'#10B981', fontSize:13 }}>נוכחי: {fmtILS(d.currentRaw)}</p>
-                        <p style={{ margin:'2px 0', color:'#63d1f6', fontSize:13 }}>יעד: {fmtILS(d.targetRaw)}</p>
+                        <p style={{ margin:'2px 0', color:'#06D6F7', fontSize:13 }}>יעד: {fmtILS(d.targetRaw)}</p>
                       </div>
                     )
                   }}
@@ -667,8 +667,8 @@ function MonthlyView({ transactions, settings, loading }) {
 
       <div style={{ ...S.kpiGrid, gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 18 }}>
         <KpiCard title="הכנסות" value={loading ? '—' : fmtILS(kpis.income)}   accent="#10B981" sub="period: monthly" />
-        <KpiCard title="הוצאות" value={loading ? '—' : fmtILS(kpis.expenses)} accent="#F43F5E" sub="period: monthly" />
-        <KpiCard title="יתרה"   value={loading ? '—' : fmtILS(kpis.net)}      accent="#8B5CF6" sub={kpis.net >= 0 ? 'עודף' : 'גירעון'} />
+        <KpiCard title="הוצאות" value={loading ? '—' : fmtILS(kpis.expenses)} accent="#FF3E6C" sub="period: monthly" />
+        <KpiCard title="יתרה"   value={loading ? '—' : fmtILS(kpis.net)}      accent="#6366F1" sub={kpis.net >= 0 ? 'עודף' : 'גירעון'} />
       </div>
 
       {/* Pace card */}
@@ -723,12 +723,12 @@ function MonthlyView({ transactions, settings, loading }) {
           <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
             {recurring.slice(0, 10).map((t, i) => (
               <div key={t.id ?? i} style={S.txRow}>
-                <span style={{ ...S.txBadge, background: t.type==='income' ? 'rgba(16,185,129,0.12)' : 'rgba(244,63,94,0.12)', color: t.type==='income' ? '#10B981' : '#F43F5E' }}>
+                <span style={{ ...S.txBadge, background: t.type==='income' ? 'rgba(16,185,129,0.12)' : 'rgba(244,63,94,0.12)', color: t.type==='income' ? '#10B981' : '#FF3E6C' }}>
                   {t.type === 'income' ? '↑' : '↓'}
                 </span>
                 <span style={S.txDesc}>{t.desc || t.category}</span>
                 <span style={S.txCat}>{t.category}</span>
-                <span style={{ ...S.txAmt, color: t.type==='income' ? '#10B981' : '#F43F5E' }}>
+                <span style={{ ...S.txAmt, color: t.type==='income' ? '#10B981' : '#FF3E6C' }}>
                   {t.type==='income' ? '+' : '−'}{fmtILS(Number(t.amount)||0)}
                 </span>
               </div>
@@ -764,8 +764,8 @@ function AnnualView({ transactions, settings, loading }) {
 
       <div style={{ ...S.kpiGrid, gridTemplateColumns:'repeat(3,1fr)', marginBottom:18 }}>
         <KpiCard title="הכנסות שנתיות" value={loading ? '—' : fmtILS(kpis.income)}   accent="#10B981" sub={`${filtered.filter(t=>t.type==='income').length} עסקאות`} />
-        <KpiCard title="הוצאות שנתיות" value={loading ? '—' : fmtILS(kpis.expenses)} accent="#F43F5E" sub={`${filtered.filter(t=>t.type==='expense').length} עסקאות`} />
-        <KpiCard title="חיסכון נטו"    value={loading ? '—' : fmtILS(kpis.net)}      accent="#8B5CF6" sub={`${Math.round(savingsPct)}% מהיעד`} />
+        <KpiCard title="הוצאות שנתיות" value={loading ? '—' : fmtILS(kpis.expenses)} accent="#FF3E6C" sub={`${filtered.filter(t=>t.type==='expense').length} עסקאות`} />
+        <KpiCard title="חיסכון נטו"    value={loading ? '—' : fmtILS(kpis.net)}      accent="#6366F1" sub={`${Math.round(savingsPct)}% מהיעד`} />
       </div>
 
       {/* Annual goal */}
@@ -773,11 +773,11 @@ function AnnualView({ transactions, settings, loading }) {
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, direction:'rtl' }}>
           <div>
             <p style={S.cardLabel}>יעד חיסכון שנתי</p>
-            <p style={{ ...S.cardValue, color:'#8B5CF6', margin:'4px 0 0', fontSize:20 }}>{yearlyGoal ? fmtILS(yearlyGoal) : 'לא הוגדר'}</p>
+            <p style={{ ...S.cardValue, color:'#6366F1', margin:'4px 0 0', fontSize:20 }}>{yearlyGoal ? fmtILS(yearlyGoal) : 'לא הוגדר'}</p>
           </div>
-          <p style={{ fontSize:30, fontWeight:800, color:'#8B5CF6', margin:0, letterSpacing:'-0.04em' }}>{Math.round(savingsPct)}%</p>
+          <p style={{ fontSize:30, fontWeight:800, color:'#6366F1', margin:0, letterSpacing:'-0.04em' }}>{Math.round(savingsPct)}%</p>
         </div>
-        <LinearProgress value={Math.max(kpis.net, 0)} max={yearlyGoal || 1} color="linear-gradient(90deg,#8B5CF6,#06B6D4)" />
+        <LinearProgress value={Math.max(kpis.net, 0)} max={yearlyGoal || 1} color="linear-gradient(90deg,#6366F1,#06D6F7)" />
         <p style={{ fontSize:11, color:'#374151', marginTop:6, textAlign:'left', direction:'ltr' }}>
           נותר: {yearlyGoal ? fmtILS(Math.max(yearlyGoal - kpis.net, 0)) : '—'}
         </p>
@@ -872,7 +872,7 @@ function ReportsView({ transactions, loading }) {
               <Tooltip content={<DarkTooltip />} cursor={{ fill:'rgba(255,255,255,0.03)' }} />
               <Legend wrapperStyle={{ fontSize:12, color:'#4B5563', paddingTop:8 }} />
               <Bar dataKey="income"  name="הכנסות" fill="#10B981" radius={[3,3,0,0]} />
-              <Bar dataKey="expense" name="הוצאות" fill="#F43F5E" radius={[3,3,0,0]} />
+              <Bar dataKey="expense" name="הוצאות" fill="#FF3E6C" radius={[3,3,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -1070,48 +1070,48 @@ export default function Dashboard({ user, onLogout }) {
 // ─── styles ───────────────────────────────────────────────────────────────────
 
 const S = {
-  root: { display:'flex', minHeight:'100vh', background:'#0F0F11', color:'#E2E8F0', fontFamily:"'Inter','Segoe UI',sans-serif", direction:'rtl' },
-  sidebar: { width:220, flexShrink:0, background:'rgba(15,15,17,0.97)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderLeft:'1px solid rgba(255,255,255,0.05)', display:'flex', flexDirection:'column', padding:'24px 0' },
-  logo: { display:'flex', alignItems:'center', gap:10, padding:'0 18px 22px', borderBottom:'1px solid rgba(255,255,255,0.05)', direction:'rtl' },
-  logoMark: { width:30, height:30, borderRadius:8, background:'linear-gradient(135deg,#8B5CF6,#06B6D4)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14, flexShrink:0, color:'#fff' },
-  logoText: { fontWeight:700, fontSize:14, letterSpacing:'-0.02em', color:'#F1F5F9' },
+  root: { display:'flex', minHeight:'100vh', background:'transparent', color:'#F8FAFC', fontFamily:"'Inter','Segoe UI',sans-serif", direction:'rtl' },
+  sidebar: { width:228, flexShrink:0, background:'rgba(5,7,20,0.88)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderLeft:'1px solid rgba(255,255,255,0.07)', display:'flex', flexDirection:'column', padding:'24px 0', boxShadow:'3px 0 30px rgba(0,0,0,0.4)' },
+  logo: { display:'flex', alignItems:'center', gap:10, padding:'0 18px 24px', borderBottom:'1px solid rgba(255,255,255,0.06)', direction:'rtl' },
+  logoMark: { width:32, height:32, borderRadius:9, background:'linear-gradient(135deg,#6366F1,#06D6F7)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:15, flexShrink:0, color:'#fff', boxShadow:'0 0 18px rgba(99,102,241,0.5)' },
+  logoText: { fontWeight:800, fontSize:15, letterSpacing:'-0.03em', color:'#F8FAFC' },
   nav: { display:'flex', flexDirection:'column', gap:2, padding:'14px 10px' },
-  navBtn: { position:'relative', display:'flex', alignItems:'center', gap:9, padding:'9px 12px', borderRadius:9, border:'none', background:'transparent', color:'#4B5563', fontSize:13, fontWeight:500, cursor:'pointer', textAlign:'right', direction:'rtl', width:'100%', transition:'color 0.15s' },
-  navBtnActive: { color:'#E2E8F0' },
-  navPill: { position:'absolute', inset:0, borderRadius:9, background:'rgba(139,92,246,0.13)', border:'1px solid rgba(139,92,246,0.22)' },
+  navBtn: { position:'relative', display:'flex', alignItems:'center', gap:9, padding:'10px 12px', borderRadius:10, border:'none', background:'transparent', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', textAlign:'right', direction:'rtl', width:'100%', transition:'color 0.15s' },
+  navBtnActive: { color:'#F8FAFC' },
+  navPill: { position:'absolute', inset:0, borderRadius:10, background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.28)', boxShadow:'0 0 14px rgba(99,102,241,0.12)' },
   navIcon: { fontSize:14 },
-  main: { flex:1, display:'flex', flexDirection:'column', padding:'34px 42px', direction:'rtl', overflowX:'hidden' },
-  header: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:26 },
-  headerSub: { fontSize:10, color:'#374151', margin:'0 0 3px', letterSpacing:'0.08em', textTransform:'uppercase' },
-  headerTitle: { fontSize:22, fontWeight:700, margin:0, letterSpacing:'-0.03em', color:'#F1F5F9' },
+  main: { flex:1, display:'flex', flexDirection:'column', padding:'36px 44px', direction:'rtl', overflowX:'hidden' },
+  header: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:28 },
+  headerSub: { fontSize:10, color:'#334155', margin:'0 0 4px', letterSpacing:'0.10em', textTransform:'uppercase' },
+  headerTitle: { fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.04em', color:'#F8FAFC' },
   headerActions: { display:'flex', alignItems:'center', gap:10 },
-  actionBtn: { padding:'7px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(30,30,30,0.9)', color:'#94A3B8', fontSize:12, fontWeight:500, cursor:'pointer' },
-  logoutBtn: { padding:'7px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'transparent', color:'#374151', fontSize:12, fontWeight:500, cursor:'pointer' },
-  avatar: { width:33, height:33, borderRadius:'50%', background:'linear-gradient(135deg,#8B5CF6,#06B6D4)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:600, fontSize:13, flexShrink:0, color:'#fff' },
-  errorBanner: { display:'flex', alignItems:'center', gap:10, background:'#1a0505', border:'1px solid rgba(244,63,94,0.3)', borderRadius:10, padding:'10px 16px', marginBottom:20, color:'#FCA5A5', fontSize:13 },
+  actionBtn: { padding:'8px 16px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', color:'#94A3B8', fontSize:12, fontWeight:500, cursor:'pointer' },
+  logoutBtn: { padding:'8px 16px', borderRadius:9, border:'1px solid rgba(255,255,255,0.06)', background:'transparent', color:'#334155', fontSize:12, fontWeight:500, cursor:'pointer' },
+  avatar: { width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#6366F1,#06D6F7)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14, flexShrink:0, color:'#fff', boxShadow:'0 0 16px rgba(99,102,241,0.45)' },
+  errorBanner: { display:'flex', alignItems:'center', gap:10, background:'rgba(255,62,108,0.10)', border:'1px solid rgba(255,62,108,0.25)', borderRadius:10, padding:'10px 16px', marginBottom:20, color:'#FCA5A5', fontSize:13 },
   view: { display:'flex', flexDirection:'column' },
   kpiGrid: { display:'grid', gap:14 },
-  card: { background:'#1E1E1E', border:'1px solid rgba(255,255,255,0.055)', borderTop:'2px solid transparent', borderRadius:12, padding:'18px 20px', marginBottom:16, cursor:'default', transition:'box-shadow 0.2s' },
-  cardLabel: { fontSize:10, color:'#4B5563', textTransform:'uppercase', letterSpacing:'0.09em', margin:'0 0 7px' },
-  cardValue: { fontSize:24, fontWeight:700, margin:'0 0 3px', letterSpacing:'-0.03em', lineHeight:1 },
-  cardSub: { fontSize:11, color:'#374151', margin:0 },
-  sectionTitle: { fontSize:11, fontWeight:600, color:'#4B5563', margin:'0 0 14px', letterSpacing:'0.05em', textTransform:'uppercase' },
-  empty: { fontSize:13, color:'#374151', textAlign:'center', padding:'36px 0', margin:0 },
+  card: { background:'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.08)', borderTop:'2px solid transparent', borderRadius:14, padding:'20px 22px', marginBottom:16, cursor:'default', transition:'box-shadow 0.2s, background 0.2s' },
+  cardLabel: { fontSize:10, color:'#475569', textTransform:'uppercase', letterSpacing:'0.09em', margin:'0 0 7px' },
+  cardValue: { fontSize:26, fontWeight:800, margin:'0 0 3px', letterSpacing:'-0.04em', lineHeight:1 },
+  cardSub: { fontSize:11, color:'#334155', margin:0 },
+  sectionTitle: { fontSize:10, fontWeight:700, color:'#475569', margin:'0 0 14px', letterSpacing:'0.08em', textTransform:'uppercase' },
+  empty: { fontSize:13, color:'#334155', textAlign:'center', padding:'36px 0', margin:0 },
   filterRow: { display:'flex', alignItems:'center', gap:10, marginBottom:18, direction:'rtl' },
-  filterLabel: { fontSize:12, color:'#4B5563' },
-  filterInput: { padding:'6px 11px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'#1E1E1E', color:'#E2E8F0', fontSize:13, outline:'none', cursor:'pointer', colorScheme:'dark' },
-  track: { height:6, borderRadius:3, background:'rgba(255,255,255,0.05)', overflow:'hidden' },
+  filterLabel: { fontSize:12, color:'#475569' },
+  filterInput: { padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', color:'#F8FAFC', fontSize:13, outline:'none', cursor:'pointer', colorScheme:'dark' },
+  track: { height:6, borderRadius:3, background:'rgba(255,255,255,0.06)', overflow:'hidden' },
   fill:  { height:'100%', borderRadius:3 },
-  txRow: { display:'flex', alignItems:'center', gap:9, direction:'rtl', padding:'8px 10px', borderRadius:7, borderBottom:'1px solid rgba(255,255,255,0.03)' },
-  txBadge: { width:24, height:24, borderRadius:6, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700 },
+  txRow: { display:'flex', alignItems:'center', gap:9, direction:'rtl', padding:'9px 10px', borderRadius:8, borderBottom:'1px solid rgba(255,255,255,0.04)' },
+  txBadge: { width:26, height:26, borderRadius:7, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700 },
   txDesc: { flex:1, fontSize:13, color:'#CBD5E1', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
-  txCat:  { fontSize:11, color:'#374151', padding:'2px 7px', borderRadius:4, background:'rgba(255,255,255,0.04)' },
-  txAmt:  { fontSize:13, fontWeight:600, flexShrink:0, direction:'ltr' },
-  settingRow: { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 13px', background:'rgba(255,255,255,0.03)', borderRadius:8, border:'1px solid rgba(255,255,255,0.04)' },
-  tooltip: { background:'#161618', border:'1px solid rgba(255,255,255,0.07)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#E2E8F0' },
-  tooltipLabel: { margin:'0 0 4px', color:'#374151', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' },
-  insightsCard: { background:'#1E1E1E', border:'1px solid rgba(139,92,246,0.3)', borderRadius:12, padding:'18px 20px', marginBottom:16, boxShadow:'0 0 0 1px rgba(139,92,246,0.08), 0 0 40px rgba(139,92,246,0.06)' },
+  txCat:  { fontSize:11, color:'#374151', padding:'2px 8px', borderRadius:5, background:'rgba(255,255,255,0.05)' },
+  txAmt:  { fontSize:13, fontWeight:700, flexShrink:0, direction:'ltr' },
+  settingRow: { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 14px', background:'rgba(255,255,255,0.04)', borderRadius:9, border:'1px solid rgba(255,255,255,0.06)' },
+  tooltip: { background:'rgba(5,7,20,0.95)', backdropFilter:'blur(16px)', border:'1px solid rgba(255,255,255,0.10)', borderRadius:10, padding:'8px 12px', fontSize:13, color:'#E2E8F0' },
+  tooltipLabel: { margin:'0 0 4px', color:'#334155', fontSize:10, textTransform:'uppercase', letterSpacing:'0.07em' },
+  insightsCard: { background:'rgba(99,102,241,0.07)', backdropFilter:'blur(12px)', border:'1px solid rgba(99,102,241,0.22)', borderRadius:14, padding:'20px 22px', marginBottom:16, boxShadow:'0 0 0 1px rgba(99,102,241,0.07), 0 0 50px rgba(99,102,241,0.07)' },
   insightsHead: { display:'flex', alignItems:'center', gap:9, marginBottom:14, direction:'rtl' },
-  aiBadge: { fontSize:9, fontWeight:800, letterSpacing:'0.1em', border:'1px solid rgba(139,92,246,0.38)', borderRadius:5, padding:'2px 6px', background:'linear-gradient(135deg,#8B5CF6,#06B6D4)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', flexShrink:0 },
-  dot: { width:6, height:6, borderRadius:'50%', background:'linear-gradient(135deg,#8B5CF6,#06B6D4)', flexShrink:0, marginTop:7 },
+  aiBadge: { fontSize:9, fontWeight:800, letterSpacing:'0.12em', border:'1px solid rgba(99,102,241,0.40)', borderRadius:5, padding:'2px 6px', background:'linear-gradient(135deg,#6366F1,#06D6F7)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', flexShrink:0 },
+  dot: { width:6, height:6, borderRadius:'50%', background:'linear-gradient(135deg,#6366F1,#06D6F7)', flexShrink:0, marginTop:7 },
 }
