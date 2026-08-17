@@ -11,7 +11,7 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
 } from 'recharts'
 import { auth, db } from '../firebase'
-import { fetchAiInsights } from '../services/aiService'
+import { fetchMonthlyInsights, fetchGeneralInsights, fetchRecommendations } from '../services/aiService'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -377,7 +377,7 @@ function InsightsCard({ insights, loading }) {
   )
 }
 
-function GlowAiCard({ title, icon, insights, accentColor, loading }) {
+function GlowAiCard({ title, icon, insights, accentColor, loading, height }) {
   return (
     <motion.div variants={fadeUp} style={{ flex: 1, minWidth: 0 }}>
       <motion.div
@@ -393,23 +393,27 @@ function GlowAiCard({ title, icon, insights, accentColor, loading }) {
           ...S.card, marginBottom: 0,
           border: `1px solid ${accentColor}40`,
           backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex', flexDirection: 'column',
+          ...(height ? { height } : {}),
         }}
       >
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14, direction:'rtl' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14, direction:'rtl', flexShrink:0 }}>
           <span style={{ fontSize:18, lineHeight:1 }}>{icon}</span>
           <p style={{ ...S.cardLabel, margin:0, color:accentColor, letterSpacing:'0.05em' }}>{title}</p>
           <span style={{ ...S.aiBadge, marginRight:'auto' }}>AI</span>
         </div>
-        {loading ? <Empty msg="טוען…" /> : (
-          <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:10 }}>
-            {insights.map((txt, i) => (
-              <li key={i} style={{ display:'flex', alignItems:'flex-start', gap:9, direction:'rtl' }}>
-                <span style={{ width:5, height:5, borderRadius:'50%', background:accentColor, flexShrink:0, marginTop:7 }} />
-                <span style={{ fontSize:13, color:'#CBD5E1', lineHeight:1.62 }}>{txt}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+          {loading ? <Empty msg="טוען…" /> : (
+            <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:10 }}>
+              {insights.map((txt, i) => (
+                <li key={i} style={{ display:'flex', alignItems:'flex-start', gap:9, direction:'rtl' }}>
+                  <span style={{ width:5, height:5, borderRadius:'50%', background:accentColor, flexShrink:0, marginTop:7 }} />
+                  <span style={{ fontSize:13, color:'#CBD5E1', lineHeight:1.62 }}>{txt}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -477,7 +481,7 @@ function SpendingHeatmap({ transactions, loading }) {
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-function OverviewView({ transactions, settings, loading, realAiInsights, aiLoading }) {
+function OverviewView({ transactions, settings, loading, monthlyAiInsights, generalAiInsights, recsInsights, monthlyAiLoading, generalAiLoading, recsLoading }) {
   const m        = nowMonthStr()
   const filtered = filterByMonth(transactions, m)
   const kpis     = processKpis(filtered)
@@ -505,13 +509,11 @@ function OverviewView({ transactions, settings, loading, realAiInsights, aiLoadi
       </div>
 
       {/* ── NEW: AI Financial Assistant cards ── */}
-      <div style={{ display:'flex', gap:16, marginBottom:16 }}>
-        <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyIns}  accentColor="#8B5CF6" loading={loading} />
-        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={realAiInsights.length > 0 ? realAiInsights : holisticIns} accentColor="#06B6D4" loading={loading || aiLoading} />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:16 }}>
+        <GlowAiCard title="ניתוח קצב חודש נוכחי" icon="📊" insights={monthlyAiInsights.length > 0 ? monthlyAiInsights : monthlyIns}  accentColor="#8B5CF6" loading={loading || monthlyAiLoading} height={180} />
+        <GlowAiCard title="סקירה פיננסית כוללת"   icon="🔭" insights={generalAiInsights.length > 0 ? generalAiInsights : holisticIns} accentColor="#06B6D4" loading={loading || generalAiLoading} height={180} />
+        <GlowAiCard title="המלצות לפעולה"          icon="💡" insights={recsInsights}  accentColor="#F59E0B" loading={loading || recsLoading} height={180} />
       </div>
-
-      {/* ── existing InsightsCard (unchanged) ── */}
-      <InsightsCard insights={insights} loading={loading} />
 
       {/* ── existing BarChart (unchanged) ── */}
       <motion.div variants={fadeUp} style={S.card}>
@@ -908,10 +910,49 @@ function ReportsView({ transactions, loading }) {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-function SettingsView({ settings }) {
+function SettingsView({ settings, familyContext, onFamilyContextChange }) {
   const goals = settings.savingsGoals || []
   return (
     <motion.div variants={stagger} initial="hidden" animate="visible" style={S.view}>
+
+      {/* AI Family Context */}
+      <motion.div variants={fadeUp} style={{ ...S.card, borderTopColor: '#8B5CF6' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:6, direction:'rtl' }}>
+          <span style={S.aiBadge}>AI</span>
+          <SectionTitle>פרופיל משפחתי ופיננסי</SectionTitle>
+        </div>
+        <p style={{ fontSize:12, color:'#4B5563', margin:'0 0 12px', direction:'rtl', lineHeight:1.6 }}>
+          ספר ל-AI על הסטטוס שלך (למשל: נשוי+2, חוסך לרכב, מנסה לקצץ בהזמנות אוכל) כדי לקבל ייעוץ ממוקד
+        </p>
+        <textarea
+          value={familyContext}
+          onChange={(e) => onFamilyContextChange(e.target.value)}
+          placeholder="לדוגמה: נשוי עם 2 ילדים, חוסך לרכב חדש, רוצה לקצץ בהזמנות אוכל ובבילויים..."
+          rows={4}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '10px 13px',
+            borderRadius: 8,
+            border: '1px solid rgba(139,92,246,0.25)',
+            background: 'rgba(139,92,246,0.05)',
+            color: '#E2E8F0',
+            fontSize: 13,
+            lineHeight: 1.65,
+            direction: 'rtl',
+            outline: 'none',
+            resize: 'vertical',
+            colorScheme: 'dark',
+            fontFamily: 'inherit',
+          }}
+        />
+        {familyContext && (
+          <p style={{ fontSize:11, color:'#10B981', margin:'8px 0 0', direction:'rtl' }}>
+            ✓ ההקשר נשמר — ה-AI ישתמש בו בניתוח הבא
+          </p>
+        )}
+      </motion.div>
+
       <motion.div variants={fadeUp} style={S.card}>
         <SectionTitle>הגדרות תקציב</SectionTitle>
         <div style={{ display:'flex', flexDirection:'column', gap:10, direction:'rtl' }}>
@@ -960,8 +1001,20 @@ export default function Dashboard({ user, onLogout }) {
   const [loading, setLoading]               = useState(true)
   const [error, setError]                   = useState(null)
   const [activeView, setActiveView]         = useState('overview')
-  const [realAiInsights, setRealAiInsights] = useState([])
-  const [aiLoading, setAiLoading]           = useState(false)
+  const [monthlyAiInsights, setMonthlyAiInsights] = useState([])
+  const [generalAiInsights, setGeneralAiInsights] = useState([])
+  const [recsInsights, setRecsInsights]           = useState([])
+  const [monthlyAiLoading, setMonthlyAiLoading]   = useState(false)
+  const [generalAiLoading, setGeneralAiLoading]   = useState(false)
+  const [recsLoading, setRecsLoading]             = useState(false)
+  const [familyContext, setFamilyContext]   = useState(
+    () => localStorage.getItem('stashpro_familyContext') || ''
+  )
+
+  const handleFamilyContextChange = (val) => {
+    setFamilyContext(val)
+    localStorage.setItem('stashpro_familyContext', val)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -996,12 +1049,17 @@ export default function Dashboard({ user, onLogout }) {
   // Debounced AI insights — re-fires 800 ms after transactions stabilise
   useEffect(() => {
     if (!transactions.length) return
-    setAiLoading(true)
+    const args = [transactions, { ...settings, familyContext }]
+    setMonthlyAiLoading(true)
+    setGeneralAiLoading(true)
+    setRecsLoading(true)
     const id = setTimeout(() => {
-      fetchAiInsights(transactions, settings)
-        .then(setRealAiInsights)
-        .catch(() => {})
-        .finally(() => setAiLoading(false))
+      fetchMonthlyInsights(...args)
+        .then(setMonthlyAiInsights).catch(() => {}).finally(() => setMonthlyAiLoading(false))
+      fetchGeneralInsights(...args)
+        .then(setGeneralAiInsights).catch(() => {}).finally(() => setGeneralAiLoading(false))
+      fetchRecommendations(...args)
+        .then(setRecsInsights).catch(() => {}).finally(() => setRecsLoading(false))
     }, 800)
     return () => clearTimeout(id)
   }, [transactions])
@@ -1055,11 +1113,11 @@ export default function Dashboard({ user, onLogout }) {
             initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
             exit={{ opacity:0, y:-6 }} transition={{ duration:0.18 }}
           >
-            {activeView === 'overview' && <OverviewView transactions={transactions} settings={settings} loading={loading} realAiInsights={realAiInsights} aiLoading={aiLoading} />}
+            {activeView === 'overview' && <OverviewView transactions={transactions} settings={settings} loading={loading} monthlyAiInsights={monthlyAiInsights} generalAiInsights={generalAiInsights} recsInsights={recsInsights} monthlyAiLoading={monthlyAiLoading} generalAiLoading={generalAiLoading} recsLoading={recsLoading} />}
             {activeView === 'monthly'  && <MonthlyView  transactions={transactions} settings={settings} loading={loading} />}
             {activeView === 'annual'   && <AnnualView   transactions={transactions} settings={settings} loading={loading} />}
             {activeView === 'reports'  && <ReportsView  transactions={transactions} loading={loading} />}
-            {activeView === 'settings' && <SettingsView settings={settings} />}
+            {activeView === 'settings' && <SettingsView settings={settings} familyContext={familyContext} onFamilyContextChange={handleFamilyContextChange} />}
           </motion.div>
         </AnimatePresence>
       </main>
